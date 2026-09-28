@@ -29,6 +29,10 @@ struct ManagedWindow: Identifiable {
     var target: TargetApplication {
         TargetApplication(pid: pid, bundleIdentifier: bundleIdentifier, name: applicationName, icon: icon)
     }
+
+    var displayTitle: String {
+        WindowTitleFormatter.resolved(title, applicationName: applicationName)
+    }
 }
 
 extension ManagedWindow: Equatable {

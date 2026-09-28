@@ -642,6 +642,13 @@ struct PersistedWindowAssignment: Codable, Equatable {
         additionalSectionIDs.isEmpty ? sectionID : SpannedSectionIdentity.id(covering: coveredSectionIDs)
     }
 
+    func matchesWindowTitle(_ windowTitle: String) -> Bool {
+        // Older versions stored "Window" when AXTitle could not be read.
+        // Accept that legacy descriptor without using an app-name display
+        // fallback as a window identity. Existing ambiguity checks still apply.
+        title == windowTitle || (title == "Window" && windowTitle.isEmpty)
+    }
+
     /// Display profiles own placement and ordering. A window's current public
     /// descriptors and close/relaunch state belong to the window itself, even
     /// when its monitor is disconnected.
@@ -963,6 +970,13 @@ struct WindowAssignmentPersistence {
 
 enum WindowTitleFormatter {
     static let characterLimit = 8
+
+    /// Keep fallback labels out of the raw title used for window restoration.
+    static func resolved(_ title: String, applicationName: String) -> String {
+        if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return title }
+        if !applicationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return applicationName }
+        return "Window"
+    }
 
     static func display(_ title: String, limitCharacters: Bool) -> String {
         let value = title.isEmpty ? "Window" : title

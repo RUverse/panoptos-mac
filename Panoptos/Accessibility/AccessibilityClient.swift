@@ -290,7 +290,9 @@ final class AccessibilityClient: AccessibilityServing {
             handle: window,
             pid: pid,
             accessibilityIdentifier: optionalAttribute(element, kAXIdentifierAttribute as String),
-            title: optionalAttribute(element, kAXTitleAttribute as String) ?? "Window",
+            // Chrome web-app windows can reject AXTitle entirely. Preserve
+            // the missing title so presentation can use the application's name.
+            title: optionalAttribute(element, kAXTitleAttribute as String) ?? "",
             frame: CGRect(origin: position, size: size),
             isMinimized: optionalAttribute(element, kAXMinimizedAttribute as String) ?? false,
             isFullScreen: optionalAttribute(element, "AXFullScreen") ?? false,

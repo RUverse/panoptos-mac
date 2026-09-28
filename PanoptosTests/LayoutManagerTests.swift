@@ -1399,6 +1399,36 @@ final class LayoutModelTests: XCTestCase {
         XCTAssertEqual(WindowTitleFormatter.display("", limitCharacters: false), "Window")
     }
 
+    func testMissingWindowTitleUsesApplicationName() {
+        for title in ["", " \n\t"] {
+            XCTAssertEqual(WindowTitleFormatter.resolved(title, applicationName: "Paperclip"), "Paperclip")
+        }
+        XCTAssertEqual(WindowTitleFormatter.resolved("", applicationName: ""), "Window")
+        XCTAssertEqual(WindowTitleFormatter.resolved("", applicationName: " \n"), "Window")
+        XCTAssertEqual(
+            WindowTitleFormatter.display(
+                WindowTitleFormatter.resolved("", applicationName: "A long web app name"),
+                limitCharacters: true
+            ),
+            "A long w…"
+        )
+    }
+
+    func testApplicationNameFallbackPreservesRealWindowTitles() {
+        for title in ["Project overview", "Window", "  Paperclip document  "] {
+            XCTAssertEqual(WindowTitleFormatter.resolved(title, applicationName: "Paperclip"), title)
+        }
+    }
+
+    func testManagedWindowDisplayFallbackDoesNotReplaceRawTitle() {
+        var window = selectionWindow(bundleIdentifier: "Paperclip", ordinal: 0)
+        window.title = ""
+        XCTAssertEqual(window.displayTitle, "Paperclip")
+        XCTAssertEqual(window.title, "")
+        window.title = "Project overview"
+        XCTAssertEqual(window.displayTitle, "Project overview")
+    }
+
     func testWindowTitleFormatterCanLimitExtendedGraphemeClusters() {
         let grapheme = "👨‍👩‍👧‍👦"
         let title = String(repeating: grapheme, count: WindowTitleFormatter.characterLimit + 1)
@@ -6906,6 +6936,31 @@ final class WindowManagementTests: XCTestCase {
         XCTAssertEqual(relaunchedModel.sections[sectionID]?.activeWindow?.handle, reconstructedHandle)
         XCTAssertNotNil(secondMock.lastSetFrame)
         XCTAssertNil(secondMock.focusedHandle)
+    }
+
+    func testLegacyMissingWindowTitleRestoresWithoutOrdinalFallback() throws {
+        let mock = MockAccessibility()
+        let handle = AXWindowHandle(element: AXUIElementCreateSystemWide())
+        let legacyWindow = snapshot(handle: handle, title: "Window")
+        mock.windowSnapshots = [legacyWindow]
+        let sectionID = UUID()
+        let model = makeModel(mock: mock, root: .leaf(id: sectionID))
+        model.attach(window: legacyWindow, to: sectionID)
+        let assignment = try XCTUnwrap(model.savedWindowAssignments.first)
+        model.detach(windowID: assignment.id)
+
+        let replacementHandle = AXWindowHandle(element: AXUIElementCreateApplication(902))
+        mock.windowSnapshots = [snapshot(handle: replacementHandle, title: "")]
+        mock.focusedHandle = nil
+        model.restore(assignments: [assignment], excluding: [], allowingOrdinalFallback: false)
+
+        let restored = try XCTUnwrap(model.sections[sectionID]?.activeWindow)
+        XCTAssertEqual(restored.id, assignment.id)
+        XCTAssertEqual(restored.handle, replacementHandle)
+        XCTAssertEqual(restored.title, "")
+        XCTAssertEqual(restored.displayTitle, restored.applicationName)
+        XCTAssertFalse(assignment.matchesWindowTitle("Different document"))
+        XCTAssertNil(mock.focusedHandle)
     }
 
     func testRelaunchRestoresBehaviorAndSectionBarSettings() {
