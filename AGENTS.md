@@ -164,6 +164,13 @@ The overlay implementation across `Panoptos/Views/WindowMenuOverlay.swift`,
 
 ## Development workflow
 
+### Branches and pull requests
+
+- Start development work on a feature or fix branch based on `dev`, and complete it by pushing that branch and opening a pull request targeting `dev`. Creating a PR does not authorize merging it, publishing release artifacts, or deploying the website.
+- The only PRs targeting `main` are release promotions from `dev`. Merge them with a merge commit, never squash or rebase, so `main` keeps `dev`'s commits and later promotions do not conflict.
+- Do not push development commits directly to either branch or merge a PR without explicit authorization; an instruction to release includes authorization to merge the release promotion PR.
+- Keep each PR scoped to its task and preserve unrelated local changes. Before opening the PR, run the required checks below and report any manual checks not performed.
+
 ### Editing
 
 - Preserve unrelated user changes and inspect `git status` before editing or committing.
@@ -208,7 +215,9 @@ Verify at minimum:
 
 ## Release workflow
 
-Preparation is local or in GitHub Actions; publishing requires a later explicit instruction. Do not push source, create a public release, deploy the website, or publish a cask merely because preparation was requested.
+Preparation is local or in GitHub Actions; publishing requires a later explicit instruction. Do not merge `dev` into `main`, push source, create a public release, deploy the website, or publish a cask merely because preparation was requested.
+
+An instruction to release includes promoting `dev` to `main` through a release PR and merging it after the required checks pass. Do not ask for separate merge permission when release is already authorized. Review the exact `dev` commit being promoted; if it changes, review and validate the new candidate before merging. Build, validate, sign, and tag the final release from the resulting exact `main` commit so the published source and artifacts match.
 
 ### Repository and candidate
 
@@ -232,6 +241,8 @@ Preparation is local or in GitHub Actions; publishing requires a later explicit 
 - Review source/app/website/cask changes, exact notes, hashes, source completeness, tests, signing/notarization results, and all intended publication actions together. Confirm outstanding GPL suffix, repository, version, Gumroad, and Homebrew inputs before first publication.
 
 ### Publication after explicit authorization
+
+First create and merge the checked release PR from `dev` into `main`, then complete final packaging and validation from that exact `main` commit before publishing:
 
 1. Publish/verify sanitized GPL source and its matching immutable tag.
 2. Publish the approved release body with both checksums and upload only the verified signed/notarized GitHub DMG and matching complete source package. Verify anonymous downloads and bytes.
