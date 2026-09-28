@@ -166,10 +166,10 @@ The overlay implementation across `Panoptos/Views/WindowMenuOverlay.swift`,
 
 ### Branches and pull requests
 
-- Start development work on a feature or fix branch based on `dev`.
-- Submit development changes through a pull request targeting `dev`. The only PRs targeting `main` are release promotions from `dev`. Do not push development commits directly to either branch or merge a PR without explicit authorization; an instruction to release includes authorization to merge the release promotion PR.
+- Start development work on a feature or fix branch based on `dev`, and complete it by pushing that branch and opening a pull request targeting `dev`. Creating a PR does not authorize merging it, publishing release artifacts, or deploying the website.
+- The only PRs targeting `main` are release promotions from `dev`. Merge them with a merge commit, never squash or rebase, so `main` keeps `dev`'s commits and later promotions do not conflict.
+- Do not push development commits directly to either branch or merge a PR without explicit authorization; an instruction to release includes authorization to merge the release promotion PR.
 - Keep each PR scoped to its task and preserve unrelated local changes. Before opening the PR, run the required checks below and report any manual checks not performed.
-- Complete development changes by pushing the feature or fix branch and opening a PR against `dev`. Creating a PR does not authorize merging it, publishing release artifacts, or deploying the website.
 
 ### Editing
 

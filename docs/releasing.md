@@ -17,10 +17,12 @@ history before its first push.
 “Prepare release” runs candidate checks and stages review material without
 merging or publishing. An instruction to release also authorizes creating and
 merging the release PR from `dev` to `main` after the required checks pass; no
-separate merge confirmation is needed. Review the exact `dev` commit being
-promoted, and repeat review and validation if it changes. Build, validate, sign,
-and tag the final release from the resulting exact `main` commit. The official
-artifacts and corresponding source must all match that commit.
+separate merge confirmation is needed. Merge the promotion with a merge commit,
+never squash or rebase, so `main` keeps `dev`'s history. Review the exact `dev`
+commit being promoted, and repeat review and validation if it changes. Build,
+validate, sign, and tag the final release from the resulting exact `main`
+commit. The official artifacts and corresponding source must all match that
+commit.
 
 Keep the website in its existing repository and hosting setup. Its deployment
 is a separate publication action. The Homebrew tap is `RUverse/homebrew-tap`.
