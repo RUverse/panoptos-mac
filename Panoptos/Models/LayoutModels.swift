@@ -628,6 +628,23 @@ struct PersistedWindowAssignment: Codable, Equatable {
     /// have no value; those records remain a preferred legacy location until
     /// Panoptos has written topology-specific profiles.
     var displayTopology: [DisplayFingerprint]? = nil
+    /// True when the window's AXTitle could not be read. `title` is then empty
+    /// so older versions still decode the record. Optional so files written
+    /// before this field decode as readable titles.
+    var isTitleUnavailable: Bool? = nil
+
+    /// The window's title as Accessibility reported it, or nil when it could
+    /// not be read.
+    var windowTitle: String? {
+        isTitleUnavailable == true ? nil : title
+    }
+
+    /// Replacement recovery has no position signal, so a title identifies a
+    /// window only when it is readable and non-empty, or consistently
+    /// unavailable, as for Chrome web apps.
+    var hasDistinctiveTitle: Bool {
+        windowTitle.map { !$0.isEmpty } ?? true
+    }
 
     /// Every layout section the window spans, or empty when it occupies
     /// `sectionID` alone. `sectionID` always names a layout section, so
@@ -642,11 +659,11 @@ struct PersistedWindowAssignment: Codable, Equatable {
         additionalSectionIDs.isEmpty ? sectionID : SpannedSectionIdentity.id(covering: coveredSectionIDs)
     }
 
-    func matchesWindowTitle(_ windowTitle: String) -> Bool {
+    func matchesWindowTitle(_ liveTitle: String?) -> Bool {
         // Older versions stored "Window" when AXTitle could not be read.
         // Accept that legacy descriptor without using an app-name display
         // fallback as a window identity. Existing ambiguity checks still apply.
-        title == windowTitle || (title == "Window" && windowTitle.isEmpty)
+        windowTitle == liveTitle || (windowTitle == "Window" && liveTitle == nil)
     }
 
     /// Display profiles own placement and ordering. A window's current public
@@ -972,15 +989,19 @@ enum WindowTitleFormatter {
     static let characterLimit = 8
 
     /// Keep fallback labels out of the raw title used for window restoration.
-    static func resolved(_ title: String, applicationName: String) -> String {
-        if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return title }
-        if !applicationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return applicationName }
+    static func resolved(_ title: String?, applicationName: String) -> String {
+        if let title, !isBlank(title) { return title }
+        if !isBlank(applicationName) { return applicationName }
         return "Window"
     }
 
-    static func display(_ title: String, limitCharacters: Bool) -> String {
-        let value = title.isEmpty ? "Window" : title
-        guard limitCharacters, value.count > characterLimit else { return value }
-        return String(value.prefix(characterLimit)) + "…"
+    /// Shortens an already resolved title for the switcher.
+    static func display(_ resolvedTitle: String, limitCharacters: Bool) -> String {
+        guard limitCharacters, resolvedTitle.count > characterLimit else { return resolvedTitle }
+        return String(resolvedTitle.prefix(characterLimit)) + "…"
+    }
+
+    static func isBlank(_ value: String?) -> Bool {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
     }
 }

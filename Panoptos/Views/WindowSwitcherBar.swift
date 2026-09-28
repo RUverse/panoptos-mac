@@ -168,8 +168,7 @@ struct UnattachedWindowIconStrip: View {
             ForEach(presentation.unattachedGroups) { group in
                 let count = group.windows.count
                 let noun = count == 1 ? "window" : "windows"
-                let nextTitle = WindowTitleFormatter.resolved(group.nextWindowTitle, applicationName: group.applicationName)
-                let help = "\(group.applicationName): \(count) unattached \(noun). Click to cycle. Double-click to attach to this section. Next: \(nextTitle)"
+                let help = "\(group.applicationName): \(count) unattached \(noun). Click to cycle. Double-click to attach to this section. Next: \(group.nextWindowTitle)"
                 SectionStackButton(
                     icon: group.icon,
                     scale: model.windowSwitcherUIScale,
@@ -472,9 +471,10 @@ struct SectionWindowBar: View {
             let showsTitle = model.windowSwitcherTitleMode.showsTitles(
                 applicationWindowCount: applicationWindowCount
             )
+            let title = window.displayTitle
             let displayedTitle = showsTitle
                 ? WindowTitleFormatter.display(
-                    window.displayTitle,
+                    title,
                     limitCharacters: model.limitWindowSwitcherTitleCharacters
                 )
                 : nil
@@ -487,10 +487,8 @@ struct SectionWindowBar: View {
                     section: presentation.section,
                     isSectionFocused: presentation.isFocused
                 ),
-                accessibilityLabel: window.displayTitle == window.applicationName
-                    ? window.applicationName
-                    : "\(window.applicationName), \(window.displayTitle)",
-                help: window.displayTitle,
+                accessibilityLabel: window.accessibilityLabel,
+                help: title,
                 activate: { model.focus(windowID: window.id) },
                 detach: { model.detach(windowID: window.id) },
                 sectionFocusTitle: sectionFocusTitle,
@@ -525,9 +523,10 @@ struct SectionWindowBar: View {
                 .fixedSize()
                 if model.windowSwitcherTitleMode.showsTitles(applicationWindowCount: windows.count) {
                     ForEach(windows) { window in
+                        let title = window.displayTitle
                         SectionStackButton(
                             title: WindowTitleFormatter.display(
-                                window.displayTitle,
+                                title,
                                 limitCharacters: model.limitWindowSwitcherTitleCharacters
                             ),
                             scale: model.windowSwitcherUIScale,
@@ -536,8 +535,8 @@ struct SectionWindowBar: View {
                                 section: presentation.section,
                                 isSectionFocused: presentation.isFocused
                             ),
-                            accessibilityLabel: window.displayTitle,
-                            help: window.displayTitle,
+                            accessibilityLabel: title,
+                            help: title,
                             activate: { model.focus(windowID: window.id) },
                             detach: { model.detach(windowID: window.id) },
                             sectionFocusTitle: sectionFocusTitle,

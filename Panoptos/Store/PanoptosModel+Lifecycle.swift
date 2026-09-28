@@ -1463,7 +1463,7 @@ extension PanoptosModel {
                     applicationName: first.applicationName,
                     icon: first.icon,
                     windows: windows,
-                    nextWindowTitle: windows[nextIndex].title
+                    nextWindowTitle: windows[nextIndex].displayTitle
                 )
             )
         }
