@@ -3725,12 +3725,13 @@ final class WindowManagementTests: XCTestCase {
         }
     }
 
-    func testSpanningExpandsWithinDisplayAndStopsAtItsEdge() throws {
+    func testSpanningBouncesBackOffTheDisplayEdge() throws {
         for direction in [HorizontalDirection.left, .right] {
             let leftSection = UUID()
             let middleSection = UUID()
             let rightSection = UUID()
             let sourceSection = direction == .left ? rightSection : leftSection
+            let opposite = direction == .left ? HorizontalDirection.right : HorizontalDirection.left
             let display = currentDisplay(
                 fingerprint: DisplayFingerprint(vendor: 1, model: 1, serial: 1, name: "Source"),
                 frame: CGRect(x: 0, y: 0, width: 1200, height: 800)
@@ -3795,17 +3796,46 @@ final class WindowManagementTests: XCTestCase {
                 model.contentFrame(forSection: threeSectionID),
                 model.contentFrame(forSectionIDs: [leftSection, middleSection, rightSection])
             )
-            let persistedAssignments = try Data(contentsOf: model.windowAssignmentPersistence.url)
 
+
+            // The span cannot grow onto the neighbouring display, so it
+            // bounces back off that wall and gives up the section at that edge.
             model.spanFocusedWindow(direction)
 
-            XCTAssertEqual(
-                model.sections[threeSectionID]?.coveredSectionIDs,
-                [leftSection, middleSection, rightSection]
-            )
-            XCTAssertEqual(mock.setFrameRequests.count, 2)
+            XCTAssertNil(model.sections[threeSectionID])
+            XCTAssertEqual(model.sections[twoSectionID]?.coveredSectionIDs, [sourceSection, middleSection])
+            XCTAssertEqual(model.sections[twoSectionID]?.windows.map(\.id), [window.id])
+            XCTAssertEqual(model.sections[twoSectionID]?.activeWindowID, window.id)
+            XCTAssertTrue(model.isSectionOnTop(twoSectionID))
+            XCTAssertEqual(mock.setFrameRequests.count, 3)
+            XCTAssertEqual(mock.setFrameRequests.last?.frame, PanoptosModel.accessibilityFrame(
+                fromAppKitFrame: try XCTUnwrap(model.contentFrame(forSectionIDs: [sourceSection, middleSection]))
+            ))
+
+            // With room again on that side, it grows back to the wall.
+            model.spanFocusedWindow(direction)
+
+            XCTAssertNil(model.sections[twoSectionID])
+            XCTAssertEqual(model.sections[threeSectionID]?.windows.map(\.id), [window.id])
+            XCTAssertEqual(mock.setFrameRequests.count, 4)
             XCTAssertEqual(mock.setFrameRequests.last?.frame, expandedFrame)
-            XCTAssertEqual(try Data(contentsOf: model.windowAssignmentPersistence.url), persistedAssignments)
+
+            // Bouncing off the other wall works the same way, and a span
+            // shrunk to one section folds back into that section.
+            model.spanFocusedWindow(direction)
+            model.spanFocusedWindow(opposite)
+
+            XCTAssertNil(model.sections[twoSectionID])
+            XCTAssertFalse(model.sections.values.contains { $0.isSpanned })
+            XCTAssertEqual(model.sections[middleSection]?.windows.map(\.id), [window.id])
+            XCTAssertEqual(model.sections[middleSection]?.activeWindowID, window.id)
+            XCTAssertEqual(mock.setFrameRequests.count, 6)
+            XCTAssertEqual(mock.setFrameRequests.last?.frame, PanoptosModel.accessibilityFrame(
+                fromAppKitFrame: try XCTUnwrap(model.contentFrame(forSection: middleSection))
+            ))
+            let record = try XCTUnwrap(model.savedWindowAssignments.first { $0.id == window.id })
+            XCTAssertEqual(record.sectionID, middleSection)
+            XCTAssertTrue(record.additionalSectionIDs.isEmpty)
         }
     }
 
