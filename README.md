@@ -88,6 +88,12 @@ GitHub Actions prepares reviewable candidates; it does not publish releases or d
 
 Version/build values come from Xcode's `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`. Each published build must exceed all previous builds. Published binaries and version tags are immutable; corrections require a new release.
 
+For Gumroad, `scripts/release.sh --supporter --github-repository RUverse/panoptos`
+exports a separate signed/notarized DMG from an exact published release commit.
+It adds a persistent **Supporter Version** thank-you in General settings; features,
+licensing, and updates are identical. Preview with `--supporter --dry-run`.
+See the [supporter export workflow](docs/releasing.md#gumroad-supporter-export).
+
 ## Contributing and security
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development and contribution guidance and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
@@ -99,3 +105,4 @@ Copyright © 2026 Alireza Ektefaie.
 Panoptos is licensed under **GPL-3.0-or-later**. See the unmodified [GNU GPL version 3 text](LICENSE). GPL and third-party notices are bundled with the application and accessible in General settings.
 
 Sparkle is the only third-party app code dependency, distributed under its own [license and bundled notices](Panoptos/Resources/Legal/Sparkle-LICENSE.txt). Matching release source archives include the pinned dependency source and build instructions.
+# panoptos
