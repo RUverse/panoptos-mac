@@ -3725,12 +3725,13 @@ final class WindowManagementTests: XCTestCase {
         }
     }
 
-    func testSpanningExpandsWithinDisplayAndStopsAtItsEdge() throws {
+    func testSpanningExpandsWithinDisplayThenShrinksTowardItsEdge() throws {
         for direction in [HorizontalDirection.left, .right] {
             let leftSection = UUID()
             let middleSection = UUID()
             let rightSection = UUID()
             let sourceSection = direction == .left ? rightSection : leftSection
+            let edgeSection = direction == .left ? leftSection : rightSection
             let display = currentDisplay(
                 fingerprint: DisplayFingerprint(vendor: 1, model: 1, serial: 1, name: "Source"),
                 frame: CGRect(x: 0, y: 0, width: 1200, height: 800)
@@ -3795,16 +3796,45 @@ final class WindowManagementTests: XCTestCase {
                 model.contentFrame(forSection: threeSectionID),
                 model.contentFrame(forSectionIDs: [leftSection, middleSection, rightSection])
             )
-            let persistedAssignments = try Data(contentsOf: model.windowAssignmentPersistence.url)
 
+            // The span cannot grow past the display edge, so it shrinks from
+            // the opposite edge instead, moving toward the edge it reached.
             model.spanFocusedWindow(direction)
 
-            XCTAssertEqual(
-                model.sections[threeSectionID]?.coveredSectionIDs,
-                [leftSection, middleSection, rightSection]
+            let shrunkSectionID = SpannedSectionIdentity.id(covering: [middleSection, edgeSection])
+            XCTAssertNil(model.sections[threeSectionID])
+            XCTAssertEqual(model.sections[shrunkSectionID]?.coveredSectionIDs, [middleSection, edgeSection])
+            XCTAssertEqual(model.sections[shrunkSectionID]?.windows.map(\.id), [window.id])
+            XCTAssertEqual(model.sections[shrunkSectionID]?.activeWindowID, window.id)
+            XCTAssertTrue(model.isSectionOnTop(shrunkSectionID))
+            XCTAssertEqual(mock.setFrameRequests.count, 3)
+            XCTAssertEqual(mock.setFrameRequests.last?.frame, PanoptosModel.accessibilityFrame(
+                fromAppKitFrame: try XCTUnwrap(model.contentFrame(forSectionIDs: [middleSection, edgeSection]))
+            ))
+
+            // Down to one section, the window folds back into that section.
+            model.spanFocusedWindow(direction)
+
+            XCTAssertNil(model.sections[shrunkSectionID])
+            XCTAssertFalse(model.sections.values.contains { $0.isSpanned })
+            XCTAssertEqual(model.sections[edgeSection]?.windows.map(\.id), [window.id])
+            XCTAssertEqual(model.sections[edgeSection]?.activeWindowID, window.id)
+            XCTAssertEqual(mock.setFrameRequests.count, 4)
+            let foldedFrame = PanoptosModel.accessibilityFrame(
+                fromAppKitFrame: try XCTUnwrap(model.contentFrame(forSection: edgeSection))
             )
-            XCTAssertEqual(mock.setFrameRequests.count, 2)
-            XCTAssertEqual(mock.setFrameRequests.last?.frame, expandedFrame)
+            XCTAssertEqual(mock.setFrameRequests.last?.frame, foldedFrame)
+            let record = try XCTUnwrap(model.savedWindowAssignments.first { $0.id == window.id })
+            XCTAssertEqual(record.sectionID, edgeSection)
+            XCTAssertTrue(record.additionalSectionIDs.isEmpty)
+            let persistedAssignments = try Data(contentsOf: model.windowAssignmentPersistence.url)
+
+            // A single section at the display edge can neither grow nor shrink.
+            model.spanFocusedWindow(direction)
+
+            XCTAssertEqual(model.sections[edgeSection]?.windows.map(\.id), [window.id])
+            XCTAssertEqual(mock.setFrameRequests.count, 4)
+            XCTAssertEqual(mock.setFrameRequests.last?.frame, foldedFrame)
             XCTAssertEqual(try Data(contentsOf: model.windowAssignmentPersistence.url), persistedAssignments)
         }
     }

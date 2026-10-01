@@ -685,6 +685,10 @@ final class GlobalShortcutRegistrar: ShortcutRegistering {
 enum HorizontalDirection {
     case left
     case right
+
+    var opposite: HorizontalDirection {
+        self == .left ? .right : .left
+    }
 }
 
 /// Horizontal navigation between sections. Frames are ordered by their left

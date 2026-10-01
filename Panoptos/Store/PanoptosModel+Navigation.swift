@@ -242,7 +242,10 @@ extension PanoptosModel {
     /// it into the spanned section covering everything it now occupies. That
     /// section is a section like any other — its own switcher and menu bar sit
     /// above and below the spanned area — and it is raised as a layer over the
-    /// sections beneath it.
+    /// sections beneath it. A span that cannot grow any further in `direction`
+    /// shrinks instead: it gives up the covered section at the opposite edge,
+    /// so both edges only ever move in `direction`, and a span left with one
+    /// section folds back into that layout section.
     func spanFocusedWindow(_ direction: HorizontalDirection) {
         guard hasWindowManagementAccess else { return }
         guard let location = focusedManagedWindowLocation(),
@@ -260,18 +263,33 @@ extension PanoptosModel {
         }) else { return }
         let frames = layout(for: display).frames(in: display.visibleFrame)
         guard occupied.isSubset(of: Set(frames.keys)),
-              let edgeID = edgeSection(of: occupied, direction: direction, frames: frames),
-              let adjacentID = SectionNavigator.adjacentSection(
-                to: edgeID,
-                direction: direction,
-                frames: frames,
-                excluding: occupied
-              ) else { return }
-        let expanded = occupied.union([adjacentID])
-        guard let expandedFrame = contentFrame(forSectionIDs: expanded) else { return }
+              let edgeID = edgeSection(of: occupied, direction: direction, frames: frames) else { return }
+        let target: Set<UUID>
+        if let adjacentID = SectionNavigator.adjacentSection(
+            to: edgeID,
+            direction: direction,
+            frames: frames,
+            excluding: occupied
+        ) {
+            target = occupied.union([adjacentID])
+        } else if occupied.count > 1,
+                  let trailingID = edgeSection(of: occupied, direction: direction.opposite, frames: frames) {
+            target = occupied.subtracting([trailingID])
+        } else {
+            return
+        }
+        // Down to one section, the window rejoins that layout section, where
+        // an application split may give it only half.
+        let foldedSectionID = target.count == 1 ? target.first : nil
+        let targetFrame = if let foldedSectionID {
+            contentFrame(forApplication: window.bundleIdentifier, inSection: foldedSectionID)
+        } else {
+            contentFrame(forSectionIDs: target)
+        }
+        guard let targetFrame else { return }
 
         do {
-            try accessibility.setFrame(Self.accessibilityFrame(fromAppKitFrame: expandedFrame), of: window.handle)
+            try accessibility.setFrame(Self.accessibilityFrame(fromAppKitFrame: targetFrame), of: window.handle)
         } catch {
             compatibilityError = error.localizedDescription
             return
@@ -285,7 +303,8 @@ extension PanoptosModel {
         } else {
             sections[location.sectionID] = source
         }
-        var destination = spannedSectionState(covering: expanded)
+        var destination = foldedSectionID.map { sections[$0] ?? LayoutSectionState(id: $0) }
+            ?? spannedSectionState(covering: target)
         destination.windows.append(window)
         destination.activeWindowID = window.id
         sections[destination.id] = destination
