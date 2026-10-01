@@ -242,10 +242,10 @@ extension PanoptosModel {
     /// it into the spanned section covering everything it now occupies. That
     /// section is a section like any other — its own switcher and menu bar sit
     /// above and below the spanned area — and it is raised as a layer over the
-    /// sections beneath it. A span that cannot grow any further in `direction`
-    /// shrinks instead: it gives up the covered section at the opposite edge,
-    /// so both edges only ever move in `direction`, and a span left with one
-    /// section folds back into that layout section.
+    /// sections beneath it. Spanning never crosses to another display. A span
+    /// whose `direction` edge has hit that wall bounces back instead: it gives
+    /// up the covered section at that edge, and a span left with one section
+    /// folds back into that layout section.
     func spanFocusedWindow(_ direction: HorizontalDirection) {
         guard hasWindowManagementAccess else { return }
         guard let location = focusedManagedWindowLocation(),
@@ -272,9 +272,8 @@ extension PanoptosModel {
             excluding: occupied
         ) {
             target = occupied.union([adjacentID])
-        } else if occupied.count > 1,
-                  let trailingID = edgeSection(of: occupied, direction: direction.opposite, frames: frames) {
-            target = occupied.subtracting([trailingID])
+        } else if occupied.count > 1 {
+            target = occupied.subtracting([edgeID])
         } else {
             return
         }
