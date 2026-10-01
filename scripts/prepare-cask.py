@@ -25,7 +25,7 @@ def main():
   version "VERSION"
   sha256 "SHA256"
 
-  url "https://github.com/RUverse/panoptos/releases/download/v#{version}/Panoptos.dmg"
+  url "https://github.com/RUverse/panoptos-mac/releases/download/v#{version}/Panoptos.dmg"
   name "Panoptos"
   desc "Window manager with persistent monitor sections and window switching"
   homepage "https://panoptos.ruverse.ai/"

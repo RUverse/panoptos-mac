@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum PanoptosLinks {
-    static let source = URL(string: "https://github.com/RUverse/panoptos")!
+    static let source = URL(string: "https://github.com/RUverse/panoptos-mac")!
     static let feedback = source.appending(path: "issues")
 
     static func releaseSource(version: String) -> URL {
