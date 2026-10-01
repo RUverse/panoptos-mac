@@ -12,9 +12,9 @@ A PARTICULAR PURPOSE. See LICENSE.txt for the full license.
 
 Matching corresponding source accompanies each official release. The release's
 source archive includes Panoptos, its build and packaging scripts, and the
-pinned Sparkle dependency source. Source: https://github.com/RUverse/panoptos
+pinned Sparkle dependency source. Source: https://github.com/RUverse/panoptos-mac
 For this version's matching source archive, visit its release under
-https://github.com/RUverse/panoptos/releases.
+https://github.com/RUverse/panoptos-mac/releases.
 
 Sparkle is included under its own license. See Sparkle-LICENSE.txt for its
 copyright, permission notice, and bundled third-party notices.

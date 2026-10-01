@@ -6,7 +6,7 @@ not authorize publication.
 
 ## Source and branch policy
 
-The canonical application repository is `RUverse/panoptos`. For the first public
+The canonical application repository is `RUverse/panoptos-mac`. For the first public
 release, use a sanitized export with new history, preserving the original private
 repository separately. Do not push legacy GitLab history, backup refs, local
 signing configuration, private operations files, or build output. Base topic
@@ -44,7 +44,7 @@ in `AGENTS.md` with Xcode Stop/Run, or record gaps explicitly.
 ## GitHub Actions preparation
 
 Run **Prepare release candidate** (`release-candidate.yml`) manually on the reviewed commit, supplying
-its version, build, `RUverse/panoptos`, and release-note text. The workflow has
+its version, build, `RUverse/panoptos-mac`, and release-note text. The workflow has
 read-only permissions and no signing credentials. It does not create tags or
 releases, update the live appcast, or deploy the website.
 
@@ -67,8 +67,8 @@ audits, app/DMG notarization, stapling, and Gatekeeper verification.
 From the clean exact source commit:
 
 ```sh
-scripts/release.sh --dry-run --github-repository RUverse/panoptos
-scripts/release.sh --release-notes build/release-notes-1.4.0.md --github-repository RUverse/panoptos
+scripts/release.sh --dry-run --github-repository RUverse/panoptos-mac
+scripts/release.sh --release-notes build/release-notes-1.4.0.md --github-repository RUverse/panoptos-mac
 ```
 
 The dry run validates local packaging without notarization or publication; its

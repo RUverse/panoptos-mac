@@ -2072,7 +2072,7 @@ final class WindowManagementTests: XCTestCase {
     func testReleaseSourceLinkUsesExactVersionTag() {
         XCTAssertEqual(
             PanoptosLinks.releaseSource(version: "1.4.0").absoluteString,
-            "https://github.com/RUverse/panoptos/releases/tag/v1.4.0"
+            "https://github.com/RUverse/panoptos-mac/releases/tag/v1.4.0"
         )
     }
 
