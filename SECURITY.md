@@ -13,4 +13,4 @@ Never send passwords, signing keys, or other secrets.
 Coordinate public disclosure with the maintainer after a fix is available.
 
 For ordinary bugs and feature requests, use
-[GitHub Issues](https://github.com/RUverse/panoptos/issues).
+[GitHub Issues](https://github.com/RUverse/panoptos-mac/issues).

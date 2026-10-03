@@ -21,7 +21,7 @@ Panoptos is built entirely on the public Accessibility API. It does not modify o
 
 ## Install
 
-[Download from Gumroad](https://1391562068503.gumroad.com/l/yqqmi) to support development, or [download free from GitHub](https://github.com/RUverse/panoptos/releases/latest). Each official GitHub release provides exactly two uploaded assets: the signed and notarized DMG and its matching complete source archive. Their SHA-256 checksums appear in the release description.
+[Download from Gumroad](https://1391562068503.gumroad.com/l/yqqmi) to support development, or [download free from GitHub](https://github.com/RUverse/panoptos-mac/releases/latest). Each official GitHub release provides exactly two uploaded assets: the signed and notarized DMG and its matching complete source archive. Their SHA-256 checksums appear in the release description.
 
 To install with [Homebrew](https://github.com/RUverse/homebrew-tap):
 

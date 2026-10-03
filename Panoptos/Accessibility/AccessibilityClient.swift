@@ -57,7 +57,9 @@ struct AXWindowSnapshot {
     let handle: AXWindowHandle
     let pid: pid_t
     let accessibilityIdentifier: String?
-    let title: String
+    /// Nil when the application rejects AXTitle, as Chrome web-app windows
+    /// can. An empty string is a readable title that happens to be empty.
+    let title: String?
     let frame: CGRect
     let isMinimized: Bool
     let isFullScreen: Bool
@@ -70,7 +72,7 @@ struct AXWindowSnapshot {
         handle: AXWindowHandle,
         pid: pid_t,
         accessibilityIdentifier: String? = nil,
-        title: String,
+        title: String?,
         frame: CGRect,
         isMinimized: Bool,
         isFullScreen: Bool,
@@ -290,7 +292,9 @@ final class AccessibilityClient: AccessibilityServing {
             handle: window,
             pid: pid,
             accessibilityIdentifier: optionalAttribute(element, kAXIdentifierAttribute as String),
-            title: optionalAttribute(element, kAXTitleAttribute as String) ?? "Window",
+            // Chrome web-app windows can reject AXTitle entirely. Preserve
+            // the missing title so presentation can use the application's name.
+            title: optionalAttribute(element, kAXTitleAttribute as String),
             frame: CGRect(origin: position, size: size),
             isMinimized: optionalAttribute(element, kAXMinimizedAttribute as String) ?? false,
             isFullScreen: optionalAttribute(element, "AXFullScreen") ?? false,

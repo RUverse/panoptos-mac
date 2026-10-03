@@ -23,15 +23,15 @@ Panoptos is a local macOS window manager. Through the public macOS Accessibility
 - A newly created eligible window automatically joins its application's section once that application has an attached window. If the application occupies several sections, use the last section where one of its managed windows was confirmed focused.
 - Give early, incomplete AX window creation one deferred retry. Automatic-placement success or failure must not clear or replace the user-facing compatibility error.
 - Persist monitor layouts, window assignments, switcher order, shortcuts, and user-selected settings across a normal quit and relaunch.
-- The switcher groups windows by application. Dragging an application icon moves its group; dragging a window moves it only within its application. Preserve layout during the drag, mark the drop gap, keep clicks as activation until the drag threshold is crossed, and use the persisted order for cycling shortcuts. When exactly one occupied switcher exists across all displays, the previous/next-section shortcuts cycle its windows instead; with only one window they do nothing. A switcher ordered out by focus mode still counts as a navigation destination.
+- The switcher groups windows by application. Dragging an application icon moves its group; dragging a window moves it only within its application. Preserve layout during the drag, mark the drop gap, keep clicks as activation until the drag threshold is crossed, and use the persisted order for cycling shortcuts. When exactly one occupied switcher exists across all displays, the previous/next-section shortcuts cycle its windows instead; with only one window they do nothing. A switcher set aside by focus mode still counts as a navigation destination.
 
 ### Spanned windows
 
-- Spanning (Control-Option-Command-Left/Right by default) grows the focused window over the adjacent layout section and moves it into a spanned section: a `LayoutSectionState` whose `coveredSectionIDs` names the layout sections it covers and whose ID is `SpannedSectionIdentity.id(covering:)`, derived from that set. Two windows spanning the same sections share one spanned section. Its menu bar and switcher sit above and below the whole spanned area; the covered sections keep only their unspanned windows.
+- Spanning (Control-Option-Command-Left/Right by default) grows the focused window over the adjacent layout section and moves it into a spanned section: a `LayoutSectionState` whose `coveredSectionIDs` names the layout sections it covers and whose ID is `SpannedSectionIdentity.id(covering:)`, derived from that set. Two windows spanning the same sections share one spanned section. Spanning never crosses to another display. Only when a span's edge in the pressed direction has hit that wall does the shortcut shrink it instead, giving up the covered section at that edge like bouncing back off the wall; a span shrunk to one section folds back into that layout section, and a lone section that cannot grow does nothing. Its menu bar and switcher sit above and below the whole spanned area; the covered sections keep only their unspanned windows.
 - Persistence keeps naming layout sections: a spanned record stores the first covered section in reading order as `sectionID` and the rest as `additionalSectionIDs`, so older files decode unchanged and display migration keeps working. `liveSectionID` recovers the spanned section. Switcher order is kept per live section, never mixed with the home section's.
 - A span and the sections beneath it are layers over one area. Focusing a window puts its layer on top (`isSectionOnTop`): a spanned window raises its section; a window in a covered section lowers every span over it and nonactivatingly raises the recorded active window of each other section that span covered, so the spanned window is never left showing through beside the focused one. This runs from `focus(windowID:)`, `refreshFocusedWindow()`, and `refreshRuntime()`, so Dock and app-switcher focus changes switch layers too. Raised state is session-only; the first focus after launch decides it.
 - Every switcher stays on screen so the mouse can always switch. `SwitcherStripLayout` centers a spanned section's switcher on the boundary between two covered sections nearest the middle of the span; spans sharing a boundary line up side by side. The covered sections' switchers give way, keeping the widest stretch of their strip the spanned switcher does not sit over, filling only that when bars fill; a stretch narrower than `minimumWidth` keeps the whole strip instead. The spanned switcher keeps its content width, never fills, and takes no room until measured. Only the menu bar belongs to the layer on top: a covered section shows its menu bar while the span is lowered, the spanned section while it is raised.
-- The previous/next-section shortcuts sweep by left edge, then right edge, so every layer is a stop: a section, the span starting there, the next covered section. Moving a spanned window collapses it into the covered section at that edge; that is the way out of a span. Application splits are unavailable in spanned sections, and a paired application must be unpaired before spanning.
+- The previous/next-section shortcuts sweep by left edge, then right edge, so every layer is a stop: a section, the span starting there, the next covered section. Moving a spanned window collapses it into the covered section at that edge; that and shrinking a span down to one section are the ways out of a span. Application splits are unavailable in spanned sections, and a paired application must be unpaired before spanning.
 - Layout edits re-key a span to whatever it still covers, fold it back into its one remaining section, or follow the editor's migration when every covered section is gone. Drag attachment targets only layout sections (`layoutSectionFrames()`); `sectionFrames()` also includes spanned sections. Automatic attachment of a new window may target a live spanned section when that is where the application lives.
 - Restoring window order after an unhide (`restoreActiveWindowOrder`) treats a span and the sections it covers as one stack: it raises every layer over that area, lowest first, so the layer on top ends on top again, and raises a split's partner beside each active window. The sibling correction when a span is lowered raises split partners too.
 
@@ -48,8 +48,8 @@ Panoptos is a local macOS window manager. Through the public macOS Accessibility
 
 ### Section focus mode
 
-- The switcher's right-click “Focus Section” action, placed after “Detach Window” with its configured shortcut displayed, and the “Toggle section focus” shortcut (Control-Option-F by default) make one section keep the screen to itself. The action becomes “Leave Section Focus” while active. Hide other sections' applications with application hiding, like Command-H, and order out their bars. Do not minimize, move, or resize their windows.
-- Window switching inside the focused section remains available through the window-cycling shortcuts and switcher. When another occupied section exists, the previous/next-section shortcuts leave focus mode immediately and focus the directional destination; focus mode ordering other switchers out never turns those shortcuts into local window cycling.
+- The switcher's right-click “Focus Section” action, placed after “Detach Window” with its configured shortcut displayed, and the “Toggle section focus” shortcut (Control-Option-F by default) make one section keep the screen to itself. The action becomes “Leave Section Focus” while active. Hide other sections' applications with application hiding, like Command-H, order out their menu bars, and turn their switchers into empty half-height capsules with no icons or titles that keep their width and position, marking where each section is; clicking one focuses that section, which leaves focus mode. Do not minimize, move, or resize their windows.
+- Window switching inside the focused section remains available through the window-cycling shortcuts and switcher. When another occupied section exists, the previous/next-section shortcuts leave focus mode immediately and focus the directional destination; focus mode setting other switchers aside never turns those shortcuts into local window cycling.
 - Focus mode is session-only and ends on the next foreign focus. Never restore it after launch; doing so would hide applications the user did not ask to hide.
 - Hiding is per application. Never hide an application that also owns a window in the focused section; its other-section windows remaining visible is the accepted tradeoff.
 - When unattached-window discovery is enabled, also hide applications with visible unattached windows, even when those windows overlap the focused section. Retain any application with an attached window in the focused section. Minimized, other-Space, and already-hidden unattached windows are not hiding candidates. Disabling discovery leaves unattached-only applications visible in focus mode; explain this coupling in the Layout setting.
@@ -58,7 +58,6 @@ Panoptos is a local macOS window manager. Through the public macOS Accessibility
 - After unhiding, a manual exit reasserts the window that remained focused; an automatic exit caused by foreign focus must never reclaim that focus. Then nonactivatingly raise each restored section's recorded active window so reactivating the focused application cannot put one of its other-section windows on top. Repeat that ordering correction as asynchronous application-unhide transitions settle.
 - Only `exitFocusMode()` may end the mode. Call it on every path that could strand hidden applications, including a section emptying and `NSApplication.willTerminateNotification`. Termination cleanup must run inline because a main-queue hop will not run.
 - The context-menu action targets its section. The shortcut targets the focused window's section and can end focus mode from anywhere.
-- While section focus is active, show the closed-eye SVG button outside the right end of that section's switcher capsule, styled as a bare icon like unattached windows. Clicking it leaves focus mode; omit the button outside focus mode.
 - A new shortcut command must reach existing users through a `ShortcutPersistence` version bump and must not claim an existing user binding.
 - `reconcileFocusMode(frontmostPID:)` runs from `refreshRuntime()`. Keep it out of the way during system transitions, the short entry settle window, and while Panoptos is frontmost so browsing an overlay menu does not end focus mode.
 
@@ -164,6 +163,13 @@ The overlay implementation across `Panoptos/Views/WindowMenuOverlay.swift`,
 
 ## Development workflow
 
+### Branches and pull requests
+
+- Start development work on a feature or fix branch based on `dev`, and complete it by pushing that branch and opening a pull request targeting `dev`. Creating a PR does not authorize merging it, publishing release artifacts, or deploying the website.
+- The only PRs targeting `main` are release promotions from `dev`. Merge them with a merge commit, never squash or rebase, so `main` keeps `dev`'s commits and later promotions do not conflict.
+- Do not push development commits directly to either branch or merge a PR without explicit authorization; an instruction to release includes authorization to merge the release promotion PR.
+- Keep each PR scoped to its task and preserve unrelated local changes. Before opening the PR, run the required checks below and report any manual checks not performed.
+
 ### Editing
 
 - Preserve unrelated user changes and inspect `git status` before editing or committing.
@@ -208,7 +214,9 @@ Verify at minimum:
 
 ## Release workflow
 
-Preparation is local or in GitHub Actions; publishing requires a later explicit instruction. Do not push source, create a public release, deploy the website, or publish a cask merely because preparation was requested.
+Preparation is local or in GitHub Actions; publishing requires a later explicit instruction. Do not merge `dev` into `main`, push source, create a public release, deploy the website, or publish a cask merely because preparation was requested.
+
+An instruction to release includes promoting `dev` to `main` through a release PR and merging it after the required checks pass. Do not ask for separate merge permission when release is already authorized. Review the exact `dev` commit being promoted; if it changes, review and validate the new candidate before merging. Build, validate, sign, and tag the final release from the resulting exact `main` commit so the published source and artifacts match.
 
 ### Repository and candidate
 
@@ -232,6 +240,8 @@ Preparation is local or in GitHub Actions; publishing requires a later explicit 
 - Review source/app/website/cask changes, exact notes, hashes, source completeness, tests, signing/notarization results, and all intended publication actions together. Confirm outstanding GPL suffix, repository, version, Gumroad, and Homebrew inputs before first publication.
 
 ### Publication after explicit authorization
+
+First create and merge the checked release PR from `dev` into `main`, then complete final packaging and validation from that exact `main` commit before publishing:
 
 1. Publish/verify sanitized GPL source and its matching immutable tag.
 2. Publish the approved release body with both checksums and upload only the verified signed/notarized GitHub DMG and matching complete source package. Verify anonymous downloads and bytes.

@@ -11,7 +11,7 @@ struct ManagedWindow: Identifiable {
     let windowOrdinal: Int
     let applicationName: String
     let icon: NSImage
-    var title: String
+    var title: String?
     var isMinimized: Bool
     var finderTabGroup: AXWindowHandle? = nil
     /// False when the window server lists no on-screen window at this frame
@@ -28,6 +28,19 @@ struct ManagedWindow: Identifiable {
 
     var target: TargetApplication {
         TargetApplication(pid: pid, bundleIdentifier: bundleIdentifier, name: applicationName, icon: icon)
+    }
+
+    var displayTitle: String {
+        WindowTitleFormatter.resolved(title, applicationName: applicationName)
+    }
+
+    /// Names the application as well only when the window has its own title.
+    var accessibilityLabel: String {
+        let displayTitle = displayTitle
+        guard !WindowTitleFormatter.isBlank(title), !WindowTitleFormatter.isBlank(applicationName) else {
+            return displayTitle
+        }
+        return "\(applicationName), \(displayTitle)"
     }
 }
 
@@ -299,7 +312,7 @@ struct UnattachedWindow: Equatable {
     let bundleIdentifier: String
     let applicationName: String
     let icon: NSImage
-    var title: String
+    var title: String?
     var frame: CGRect
     var isMinimized: Bool
     /// False while the window sits on another Space, including a native
@@ -320,6 +333,10 @@ struct UnattachedWindow: Equatable {
             && lhs.isOnActiveSpace == rhs.isOnActiveSpace
             && lhs.discoveryOrder == rhs.discoveryOrder
     }
+
+    var displayTitle: String {
+        WindowTitleFormatter.resolved(title, applicationName: applicationName)
+    }
 }
 
 struct UnattachedWindowGroupKey: Hashable {
@@ -335,6 +352,7 @@ struct UnattachedWindowApplicationGroup: Identifiable, Equatable {
     let applicationName: String
     let icon: NSImage
     let windows: [UnattachedWindow]
+    /// Already resolved for display, never an empty raw title.
     let nextWindowTitle: String
 
     static func == (lhs: UnattachedWindowApplicationGroup, rhs: UnattachedWindowApplicationGroup) -> Bool {

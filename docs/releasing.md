@@ -6,12 +6,23 @@ not authorize publication.
 
 ## Source and branch policy
 
-The canonical application repository is `RUverse/panoptos`. For the first public
+The canonical application repository is `RUverse/panoptos-mac`. For the first public
 release, use a sanitized export with new history, preserving the original private
 repository separately. Do not push legacy GitLab history, backup refs, local
-signing configuration, private operations files, or build output. Use `main` for
-release candidates and topic branches for contributions. Scan the exact proposed
-tree and history before its first push.
+signing configuration, private operations files, or build output. Base topic
+branches on `dev` and submit development PRs to `dev`. Reserve PRs targeting
+`main` for release promotions from `dev`. Scan the exact proposed tree and
+history before its first push.
+
+“Prepare release” runs candidate checks and stages review material without
+merging or publishing. An instruction to release also authorizes creating and
+merging the release PR from `dev` to `main` after the required checks pass; no
+separate merge confirmation is needed. Merge the promotion with a merge commit,
+never squash or rebase, so `main` keeps `dev`'s history. Review the exact `dev`
+commit being promoted, and repeat review and validation if it changes. Build,
+validate, sign, and tag the final release from the resulting exact `main`
+commit. The official artifacts and corresponding source must all match that
+commit.
 
 Keep the website in its existing repository and hosting setup. Its deployment
 is a separate publication action. The Homebrew tap is `RUverse/homebrew-tap`.
@@ -33,7 +44,7 @@ in `AGENTS.md` with Xcode Stop/Run, or record gaps explicitly.
 ## GitHub Actions preparation
 
 Run **Prepare release candidate** (`release-candidate.yml`) manually on the reviewed commit, supplying
-its version, build, `RUverse/panoptos`, and release-note text. The workflow has
+its version, build, `RUverse/panoptos-mac`, and release-note text. The workflow has
 read-only permissions and no signing credentials. It does not create tags or
 releases, update the live appcast, or deploy the website.
 
@@ -56,8 +67,8 @@ audits, app/DMG notarization, stapling, and Gatekeeper verification.
 From the clean exact source commit:
 
 ```sh
-scripts/release.sh --dry-run --github-repository RUverse/panoptos
-scripts/release.sh --release-notes build/release-notes-1.4.0.md --github-repository RUverse/panoptos
+scripts/release.sh --dry-run --github-repository RUverse/panoptos-mac
+scripts/release.sh --release-notes build/release-notes-1.4.0.md --github-repository RUverse/panoptos-mac
 ```
 
 The dry run validates local packaging without notarization or publication; its

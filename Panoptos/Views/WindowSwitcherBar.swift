@@ -211,14 +211,24 @@ private extension View {
     }
 }
 
+private struct SectionBarStripWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct SectionWindowBar: View {
     @EnvironmentObject private var model: PanoptosModel
     @ObservedObject var presentation: SectionPresentation
     @State private var itemFrames: [SectionBarDragItem: CGRect] = [:]
     @State private var drag: SectionBarDrag?
+    /// The capsule's width the last time it showed its windows. A set-aside
+    /// switcher keeps it, so entering and leaving focus mode moves nothing.
+    @State private var stripChromeWidth: CGFloat = 0
 
     private static let stripSpace = "SectionWindowBarStrip"
-    private static let focusModeIcon = NSImage(named: "SectionFocusIcon")
 
     private var metrics: WindowSwitcherMetrics {
         WindowSwitcherMetrics(scale: model.windowSwitcherUIScale)
@@ -277,28 +287,39 @@ struct SectionWindowBar: View {
             GeometryReader { geometry in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: UnattachedWindowIconStrip.spacing) {
-                        strip
-                            .padding(.horizontal, metrics.outerBarPadding)
-                            .frame(
-                                // A spanned section's switcher sits between
-                                // the switchers of the sections it covers and
-                                // keeps its content width; filling would push
-                                // them off the strip.
-                                minWidth: model.sectionBarsFillAvailableWidth
-                                    && !presentation.section.isSpanned
-                                    ? geometry.size.width
-                                    : nil,
-                                minHeight: geometry.size.height,
-                                alignment: model.sectionBarsCentered ? .center : .leading
-                            )
-                            .sectionChrome()
-                        if !presentation.unattachedGroups.isEmpty {
-                            UnattachedWindowIconStrip(presentation: presentation)
-                                .padding(.trailing, metrics.outerBarPadding)
-                        }
-                        if model.isFocusModeActive(for: presentation.sectionID) {
-                            leaveFocusModeButton
-                                .padding(.trailing, metrics.outerBarPadding)
+                        if presentation.isSetAside {
+                            setAsideCapsule(in: geometry.size)
+                        } else {
+                            strip
+                                .padding(.horizontal, metrics.outerBarPadding)
+                                .frame(
+                                    // A spanned section's switcher sits between
+                                    // the switchers of the sections it covers and
+                                    // keeps its content width; filling would push
+                                    // them off the strip.
+                                    minWidth: model.sectionBarsFillAvailableWidth
+                                        && !presentation.section.isSpanned
+                                        ? geometry.size.width
+                                        : nil,
+                                    minHeight: geometry.size.height,
+                                    alignment: model.sectionBarsCentered ? .center : .leading
+                                )
+                                .sectionChrome()
+                                .background {
+                                    GeometryReader { chrome in
+                                        Color.clear.preference(
+                                            key: SectionBarStripWidthKey.self,
+                                            value: chrome.size.width
+                                        )
+                                    }
+                                }
+                                .onPreferenceChange(SectionBarStripWidthKey.self) { width in
+                                    if stripChromeWidth != width { stripChromeWidth = width }
+                                }
+                            if !presentation.unattachedGroups.isEmpty {
+                                UnattachedWindowIconStrip(presentation: presentation)
+                                    .padding(.trailing, metrics.outerBarPadding)
+                            }
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)
@@ -320,22 +341,26 @@ struct SectionWindowBar: View {
         }
     }
 
-    private var leaveFocusModeButton: some View {
-        let shortcut = model.shortcut(for: .toggleSectionFocus).map { " (\($0.displayText))" } ?? ""
-        return SectionStackButton(
-            icon: Self.focusModeIcon,
-            scale: model.windowSwitcherUIScale,
-            drawsSelectionBackground: false,
-            drawsHoverBackground: false,
-            dimsUntilHovered: true,
-            accessibilityLabel: "Leave Section Focus",
-            help: "Focus mode is on. Leave Section Focus" + shortcut,
-            activate: {
-                guard model.isFocusModeActive(for: presentation.sectionID) else { return }
-                model.toggleFocusMode(for: presentation.sectionID)
-            }
-        )
-        .fixedSize()
+    /// Focus mode holds another section. The switcher keeps the footprint it
+    /// had, so neither it nor its neighbours move, but drops to half height
+    /// with nothing inside: it only marks where this section is. Clicking it
+    /// focuses the section's active window, which leaves focus mode.
+    private func setAsideCapsule(in size: CGSize) -> some View {
+        let fills = model.sectionBarsFillAvailableWidth && !presentation.section.isSpanned
+        // A switcher first drawn while set aside has never been measured.
+        let measured = stripChromeWidth > 0
+            ? stripChromeWidth
+            : metrics.iconOnlyWidth + metrics.outerBarPadding * 2
+        let capsuleWidth = fills ? size.width : measured
+        return ZStack(alignment: .leading) {
+            // The unattached icons beside the capsule are gone too; their room
+            // is kept so a centered switcher stays where it was.
+            Color.clear.frame(width: max(capsuleWidth, presentation.bottomContentWidth))
+            Color.clear
+                .frame(width: capsuleWidth, height: size.height / 2)
+                .sectionChrome()
+        }
+        .frame(height: size.height)
     }
 
     private func revealFocusedTarget(using proxy: ScrollViewProxy) {
@@ -471,9 +496,10 @@ struct SectionWindowBar: View {
             let showsTitle = model.windowSwitcherTitleMode.showsTitles(
                 applicationWindowCount: applicationWindowCount
             )
+            let title = window.displayTitle
             let displayedTitle = showsTitle
                 ? WindowTitleFormatter.display(
-                    window.title,
+                    title,
                     limitCharacters: model.limitWindowSwitcherTitleCharacters
                 )
                 : nil
@@ -486,10 +512,8 @@ struct SectionWindowBar: View {
                     section: presentation.section,
                     isSectionFocused: presentation.isFocused
                 ),
-                accessibilityLabel: window.title.isEmpty
-                    ? window.applicationName
-                    : "\(window.applicationName), \(window.title)",
-                help: window.title.isEmpty ? window.applicationName : window.title,
+                accessibilityLabel: window.accessibilityLabel,
+                help: title,
                 activate: { model.focus(windowID: window.id) },
                 detach: { model.detach(windowID: window.id) },
                 sectionFocusTitle: sectionFocusTitle,
@@ -524,9 +548,10 @@ struct SectionWindowBar: View {
                 .fixedSize()
                 if model.windowSwitcherTitleMode.showsTitles(applicationWindowCount: windows.count) {
                     ForEach(windows) { window in
+                        let title = window.displayTitle
                         SectionStackButton(
                             title: WindowTitleFormatter.display(
-                                window.title,
+                                title,
                                 limitCharacters: model.limitWindowSwitcherTitleCharacters
                             ),
                             scale: model.windowSwitcherUIScale,
@@ -535,8 +560,8 @@ struct SectionWindowBar: View {
                                 section: presentation.section,
                                 isSectionFocused: presentation.isFocused
                             ),
-                            accessibilityLabel: window.title,
-                            help: window.title,
+                            accessibilityLabel: title,
+                            help: title,
                             activate: { model.focus(windowID: window.id) },
                             detach: { model.detach(windowID: window.id) },
                             sectionFocusTitle: sectionFocusTitle,
