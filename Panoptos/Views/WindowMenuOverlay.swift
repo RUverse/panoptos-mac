@@ -589,15 +589,17 @@ final class WindowMenuOverlayCoordinator: ObservableObject {
                 panels[id] = value
                 return value
             }()
-            // Focus mode leaves the panels of the other sections built but off
-            // screen, so leaving it puts them straight back. A section whose
-            // every window is off screen has nothing to draw either; the
-            // windows stay attached and the bars return with them.
-            guard model.isSectionVisible(id), section.hasVisibleWindows else {
+            // A section whose every window is off screen has nothing to draw;
+            // the windows stay attached and the bars return with them.
+            guard section.hasVisibleWindows else {
                 controller.orderOut()
                 continue
             }
-            let isFocused = focusedWindowID != nil && section.activeWindow?.id == focusedWindowID
+            // Focus mode sets the other sections aside: their menu bars go,
+            // and their switchers shrink to empty capsules that still mark
+            // where each section is.
+            let isSetAside = !model.isSectionVisible(id)
+            let isFocused = !isSetAside && focusedWindowID != nil && section.activeWindow?.id == focusedWindowID
             // Every switcher stays on screen so the mouse can always switch.
             // The menu bar is the one bar that belongs to the layer on top: a
             // spanned window's menus and the menus of the windows beneath it
@@ -605,8 +607,9 @@ final class WindowMenuOverlayCoordinator: ObservableObject {
             controller.update(
                 section: section,
                 isFocused: isFocused,
-                showsMenuBar: model.showWindowMenuBars && model.isSectionOnTop(id),
-                unattachedGroups: unattachedGroupsBySection[id] ?? []
+                isSetAside: isSetAside,
+                showsMenuBar: !isSetAside && model.showWindowMenuBars && model.isSectionOnTop(id),
+                unattachedGroups: isSetAside ? [] : unattachedGroupsBySection[id] ?? []
             )
             onScreen[id] = section
         }
