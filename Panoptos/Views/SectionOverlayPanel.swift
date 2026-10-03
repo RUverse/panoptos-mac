@@ -6,6 +6,10 @@ final class SectionPresentation: ObservableObject {
     let sectionID: UUID
     @Published var section: LayoutSectionState
     @Published var isFocused = true
+    /// Focus mode holds another section: the switcher stays on screen as a
+    /// short, empty capsule marking where this section is, and clicking it
+    /// focuses the section's active window, which leaves focus mode.
+    @Published var isSetAside = false
     @Published var unattachedGroups: [UnattachedWindowApplicationGroup] = []
     @Published var topContentWidth: CGFloat = 0 {
         didSet {
@@ -70,6 +74,7 @@ final class SectionPanelController {
     func update(
         section: LayoutSectionState,
         isFocused: Bool,
+        isSetAside: Bool = false,
         showsMenuBar: Bool,
         unattachedGroups: [UnattachedWindowApplicationGroup]
     ) {
@@ -77,6 +82,7 @@ final class SectionPanelController {
         // their menu controls) on every idle reconciliation.
         if presentation.section != section { presentation.section = section }
         if presentation.isFocused != isFocused { presentation.isFocused = isFocused }
+        if presentation.isSetAside != isSetAside { presentation.isSetAside = isSetAside }
         if presentation.unattachedGroups != unattachedGroups {
             presentation.unattachedGroups = unattachedGroups
         }

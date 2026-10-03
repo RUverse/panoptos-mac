@@ -16,7 +16,8 @@ struct HiddenApplicationWindowOrderRestoration {
 }
 
 // Section focus mode: one section keeps the screen to itself while every other
-// section's windows and bars are hidden, until focus leaves that section.
+// section's windows and menu bars are hidden and its switcher shrinks to an
+// empty capsule, until focus leaves that section.
 //
 // Hiding is exactly what Command-H does — the windows disappear where they
 // stand, instantly, and come back in place. It applies per application, so an
@@ -93,7 +94,7 @@ extension PanoptosModel {
         focusModeSettleDeadline = now().addingTimeInterval(Self.focusModeSettleInterval)
         hideApplicationsOutsideFocusedSection()
         reconcileApplicationSplitVisibilityForCurrentFocus(fallbackSectionID: sectionID)
-        // The other sections' bars belong off screen the moment the applications
+        // The other sections' bars are set aside the moment the applications
         // behind them go, not at whichever reconciliation happens to come next.
         onOverlayPresentationChanged?()
     }
@@ -112,7 +113,7 @@ extension PanoptosModel {
         beginRestoringActiveWindowOrder(for: revealedPIDs)
         // Other sections became visible again. A split may have hidden an
         // application only because all of its other windows were in sections
-        // focus mode had ordered out; give that application back immediately.
+        // focus mode had set aside; give that application back immediately.
         reconcileApplicationSplitVisibilityForCurrentFocus()
         // Every section is on screen again, and this is the one place that sees
         // it: the mode is left from the bar control, the shortcut, the runtime
