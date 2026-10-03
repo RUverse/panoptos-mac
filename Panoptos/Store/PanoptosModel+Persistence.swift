@@ -75,7 +75,7 @@ extension PanoptosModel {
             bundleIdentifier: window.bundleIdentifier,
             processIdentifier: window.pid,
             accessibilityIdentifier: window.accessibilityIdentifier,
-            title: window.title,
+            title: window.title ?? "",
             windowOrdinal: window.windowOrdinal,
             order: location.order,
             isActive: location.isActive,
@@ -86,7 +86,8 @@ extension PanoptosModel {
             orphanedAt: orphanedAt,
             awaitsWindowReopen: awaitsWindowReopen,
             awaitsApplicationRelaunch: awaitsApplicationRelaunch,
-            displayTopology: displayTopology ?? currentDisplayTopology
+            displayTopology: displayTopology ?? currentDisplayTopology,
+            isTitleUnavailable: window.title == nil ? true : nil
         )
     }
 
@@ -176,7 +177,7 @@ extension PanoptosModel {
         let identifierMatches = snapshot.accessibilityIdentifier.flatMap { identifier in
             identifier.isEmpty ? nil : candidates.filter { $0.accessibilityIdentifier == identifier }
         } ?? []
-        let titleMatches = candidates.filter { !$0.title.isEmpty && $0.title == snapshot.title }
+        let titleMatches = candidates.filter { $0.hasDistinctiveTitle && $0.matchesWindowTitle(snapshot.title) }
         let candidate: PersistedWindowAssignment
         if identifierMatches.count == 1 {
             candidate = identifierMatches[0]
@@ -921,10 +922,10 @@ extension PanoptosModel {
             if identifierMatches.count == 1 { return identifierMatches[0].element }
         }
         let ordinalMatch = available.first { $0.offset == assignment.windowOrdinal }?.element
-        if sameProcess, let ordinalMatch, ordinalMatch.title == assignment.title {
+        if sameProcess, let ordinalMatch, assignment.matchesWindowTitle(ordinalMatch.title) {
             return ordinalMatch
         }
-        let titleMatches = available.filter { $0.element.title == assignment.title }
+        let titleMatches = available.filter { assignment.matchesWindowTitle($0.element.title) }
         if titleMatches.count == 1 { return titleMatches[0].element }
         // Position alone is a weak signal: it identifies a window only because
         // nothing was managed yet when the list was captured.

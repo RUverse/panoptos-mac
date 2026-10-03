@@ -1463,7 +1463,7 @@ extension PanoptosModel {
                     applicationName: first.applicationName,
                     icon: first.icon,
                     windows: windows,
-                    nextWindowTitle: windows[nextIndex].title
+                    nextWindowTitle: windows[nextIndex].displayTitle
                 )
             )
         }
@@ -1668,7 +1668,7 @@ extension PanoptosModel {
         let identifierMatches = snapshot.accessibilityIdentifier.flatMap { identifier in
             identifier.isEmpty ? nil : assignments.filter { $0.accessibilityIdentifier == identifier }
         } ?? []
-        let titleMatches = assignments.filter { $0.title == snapshot.title }
+        let titleMatches = assignments.filter { $0.matchesWindowTitle(snapshot.title) }
         let candidate: PersistedWindowAssignment?
         if identifierMatches.count == 1 {
             candidate = identifierMatches[0]

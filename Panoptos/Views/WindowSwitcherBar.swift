@@ -496,9 +496,10 @@ struct SectionWindowBar: View {
             let showsTitle = model.windowSwitcherTitleMode.showsTitles(
                 applicationWindowCount: applicationWindowCount
             )
+            let title = window.displayTitle
             let displayedTitle = showsTitle
                 ? WindowTitleFormatter.display(
-                    window.title,
+                    title,
                     limitCharacters: model.limitWindowSwitcherTitleCharacters
                 )
                 : nil
@@ -511,10 +512,8 @@ struct SectionWindowBar: View {
                     section: presentation.section,
                     isSectionFocused: presentation.isFocused
                 ),
-                accessibilityLabel: window.title.isEmpty
-                    ? window.applicationName
-                    : "\(window.applicationName), \(window.title)",
-                help: window.title.isEmpty ? window.applicationName : window.title,
+                accessibilityLabel: window.accessibilityLabel,
+                help: title,
                 activate: { model.focus(windowID: window.id) },
                 detach: { model.detach(windowID: window.id) },
                 sectionFocusTitle: sectionFocusTitle,
@@ -549,9 +548,10 @@ struct SectionWindowBar: View {
                 .fixedSize()
                 if model.windowSwitcherTitleMode.showsTitles(applicationWindowCount: windows.count) {
                     ForEach(windows) { window in
+                        let title = window.displayTitle
                         SectionStackButton(
                             title: WindowTitleFormatter.display(
-                                window.title,
+                                title,
                                 limitCharacters: model.limitWindowSwitcherTitleCharacters
                             ),
                             scale: model.windowSwitcherUIScale,
@@ -560,8 +560,8 @@ struct SectionWindowBar: View {
                                 section: presentation.section,
                                 isSectionFocused: presentation.isFocused
                             ),
-                            accessibilityLabel: window.title,
-                            help: window.title,
+                            accessibilityLabel: title,
+                            help: title,
                             activate: { model.focus(windowID: window.id) },
                             detach: { model.detach(windowID: window.id) },
                             sectionFocusTitle: sectionFocusTitle,
