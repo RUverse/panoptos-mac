@@ -1396,7 +1396,65 @@ final class LayoutModelTests: XCTestCase {
             WindowTitleFormatter.display("A long window title", limitCharacters: false),
             "A long window title"
         )
-        XCTAssertEqual(WindowTitleFormatter.display("", limitCharacters: false), "Window")
+    }
+
+    func testMissingWindowTitleUsesApplicationName() {
+        for title in [nil, "", " \n\t"] {
+            XCTAssertEqual(WindowTitleFormatter.resolved(title, applicationName: "Paperclip"), "Paperclip")
+        }
+        XCTAssertEqual(WindowTitleFormatter.resolved(nil, applicationName: ""), "Window")
+        XCTAssertEqual(WindowTitleFormatter.resolved("", applicationName: ""), "Window")
+        XCTAssertEqual(WindowTitleFormatter.resolved("", applicationName: " \n"), "Window")
+        XCTAssertEqual(
+            WindowTitleFormatter.display(
+                WindowTitleFormatter.resolved("", applicationName: "A long web app name"),
+                limitCharacters: true
+            ),
+            "A long w…"
+        )
+    }
+
+    func testApplicationNameFallbackPreservesRealWindowTitles() {
+        for title in ["Project overview", "Window", "  Paperclip document  "] {
+            XCTAssertEqual(WindowTitleFormatter.resolved(title, applicationName: "Paperclip"), title)
+        }
+    }
+
+    func testManagedWindowDisplayFallbackDoesNotReplaceRawTitle() {
+        var window = selectionWindow(bundleIdentifier: "Paperclip", ordinal: 0)
+        window.title = nil
+        XCTAssertEqual(window.displayTitle, "Paperclip")
+        XCTAssertNil(window.title)
+        window.title = ""
+        XCTAssertEqual(window.displayTitle, "Paperclip")
+        XCTAssertEqual(window.title, "")
+        window.title = "Project overview"
+        XCTAssertEqual(window.displayTitle, "Project overview")
+    }
+
+    func testWindowAccessibilityLabelNamesApplicationOnlyBesideARealTitle() {
+        var window = selectionWindow(bundleIdentifier: "Paperclip", ordinal: 0)
+        window.title = "Project overview"
+        XCTAssertEqual(window.accessibilityLabel, "Paperclip, Project overview")
+        window.title = nil
+        XCTAssertEqual(window.accessibilityLabel, "Paperclip")
+
+        let unnamed = ManagedWindow(
+            id: UUID(),
+            handle: window.handle,
+            pid: window.pid,
+            bundleIdentifier: "unnamed",
+            accessibilityIdentifier: nil,
+            windowOrdinal: 0,
+            applicationName: "",
+            icon: NSImage(),
+            title: nil,
+            isMinimized: false
+        )
+        XCTAssertEqual(unnamed.accessibilityLabel, "Window")
+        var titled = unnamed
+        titled.title = "Draft"
+        XCTAssertEqual(titled.accessibilityLabel, "Draft")
     }
 
     func testWindowTitleFormatterCanLimitExtendedGraphemeClusters() {
@@ -1407,10 +1465,6 @@ final class LayoutModelTests: XCTestCase {
         XCTAssertEqual(
             WindowTitleFormatter.display(title, limitCharacters: true),
             expected
-        )
-        XCTAssertEqual(
-            WindowTitleFormatter.display("", limitCharacters: true),
-            "Window"
         )
     }
 
@@ -2072,7 +2126,7 @@ final class WindowManagementTests: XCTestCase {
     func testReleaseSourceLinkUsesExactVersionTag() {
         XCTAssertEqual(
             PanoptosLinks.releaseSource(version: "1.4.0").absoluteString,
-            "https://github.com/RUverse/panoptos/releases/tag/v1.4.0"
+            "https://github.com/RUverse/panoptos-mac/releases/tag/v1.4.0"
         )
     }
 
@@ -3725,12 +3779,13 @@ final class WindowManagementTests: XCTestCase {
         }
     }
 
-    func testSpanningExpandsWithinDisplayAndStopsAtItsEdge() throws {
+    func testSpanningBouncesBackOffTheDisplayEdge() throws {
         for direction in [HorizontalDirection.left, .right] {
             let leftSection = UUID()
             let middleSection = UUID()
             let rightSection = UUID()
             let sourceSection = direction == .left ? rightSection : leftSection
+            let opposite = direction == .left ? HorizontalDirection.right : HorizontalDirection.left
             let display = currentDisplay(
                 fingerprint: DisplayFingerprint(vendor: 1, model: 1, serial: 1, name: "Source"),
                 frame: CGRect(x: 0, y: 0, width: 1200, height: 800)
@@ -3795,17 +3850,46 @@ final class WindowManagementTests: XCTestCase {
                 model.contentFrame(forSection: threeSectionID),
                 model.contentFrame(forSectionIDs: [leftSection, middleSection, rightSection])
             )
-            let persistedAssignments = try Data(contentsOf: model.windowAssignmentPersistence.url)
 
+
+            // The span cannot grow onto the neighbouring display, so it
+            // bounces back off that wall and gives up the section at that edge.
             model.spanFocusedWindow(direction)
 
-            XCTAssertEqual(
-                model.sections[threeSectionID]?.coveredSectionIDs,
-                [leftSection, middleSection, rightSection]
-            )
-            XCTAssertEqual(mock.setFrameRequests.count, 2)
+            XCTAssertNil(model.sections[threeSectionID])
+            XCTAssertEqual(model.sections[twoSectionID]?.coveredSectionIDs, [sourceSection, middleSection])
+            XCTAssertEqual(model.sections[twoSectionID]?.windows.map(\.id), [window.id])
+            XCTAssertEqual(model.sections[twoSectionID]?.activeWindowID, window.id)
+            XCTAssertTrue(model.isSectionOnTop(twoSectionID))
+            XCTAssertEqual(mock.setFrameRequests.count, 3)
+            XCTAssertEqual(mock.setFrameRequests.last?.frame, PanoptosModel.accessibilityFrame(
+                fromAppKitFrame: try XCTUnwrap(model.contentFrame(forSectionIDs: [sourceSection, middleSection]))
+            ))
+
+            // With room again on that side, it grows back to the wall.
+            model.spanFocusedWindow(direction)
+
+            XCTAssertNil(model.sections[twoSectionID])
+            XCTAssertEqual(model.sections[threeSectionID]?.windows.map(\.id), [window.id])
+            XCTAssertEqual(mock.setFrameRequests.count, 4)
             XCTAssertEqual(mock.setFrameRequests.last?.frame, expandedFrame)
-            XCTAssertEqual(try Data(contentsOf: model.windowAssignmentPersistence.url), persistedAssignments)
+
+            // Bouncing off the other wall works the same way, and a span
+            // shrunk to one section folds back into that section.
+            model.spanFocusedWindow(direction)
+            model.spanFocusedWindow(opposite)
+
+            XCTAssertNil(model.sections[twoSectionID])
+            XCTAssertFalse(model.sections.values.contains { $0.isSpanned })
+            XCTAssertEqual(model.sections[middleSection]?.windows.map(\.id), [window.id])
+            XCTAssertEqual(model.sections[middleSection]?.activeWindowID, window.id)
+            XCTAssertEqual(mock.setFrameRequests.count, 6)
+            XCTAssertEqual(mock.setFrameRequests.last?.frame, PanoptosModel.accessibilityFrame(
+                fromAppKitFrame: try XCTUnwrap(model.contentFrame(forSection: middleSection))
+            ))
+            let record = try XCTUnwrap(model.savedWindowAssignments.first { $0.id == window.id })
+            XCTAssertEqual(record.sectionID, middleSection)
+            XCTAssertTrue(record.additionalSectionIDs.isEmpty)
         }
     }
 
@@ -6502,7 +6586,7 @@ final class WindowManagementTests: XCTestCase {
         let sectionID = UUID()
         let model = makeModel(mock: mock, root: .leaf(id: sectionID), clock: clock)
         for snapshot in snapshots { model.attach(window: snapshot, to: sectionID) }
-        XCTAssertEqual(model.sections[sectionID]?.windows.map(\.title), titles)
+        XCTAssertEqual(model.sections[sectionID]?.windows.map(\.title), titles.map(Optional.some))
 
         // The middle window's element is replaced.
         mock.snapshotErrorsByHandle[handles[1]] = AccessibilityClientError.attribute(
@@ -6525,7 +6609,7 @@ final class WindowManagementTests: XCTestCase {
         clock.advance(5)
         model.refreshRuntime(reportedFrontmostPID: nil)
 
-        XCTAssertEqual(model.sections[sectionID]?.windows.map(\.title), titles)
+        XCTAssertEqual(model.sections[sectionID]?.windows.map(\.title), titles.map(Optional.some))
     }
 
     func testInvalidWindowsReadTheirApplicationsWindowListOncePerRefresh() throws {
@@ -6906,6 +6990,173 @@ final class WindowManagementTests: XCTestCase {
         XCTAssertEqual(relaunchedModel.sections[sectionID]?.activeWindow?.handle, reconstructedHandle)
         XCTAssertNotNil(secondMock.lastSetFrame)
         XCTAssertNil(secondMock.focusedHandle)
+    }
+
+    func testLegacyMissingWindowTitleRestoresWithoutOrdinalFallback() throws {
+        let mock = MockAccessibility()
+        let handle = AXWindowHandle(element: AXUIElementCreateSystemWide())
+        let legacyWindow = snapshot(handle: handle, title: "Window")
+        mock.windowSnapshots = [legacyWindow]
+        let sectionID = UUID()
+        let model = makeModel(mock: mock, root: .leaf(id: sectionID))
+        model.attach(window: legacyWindow, to: sectionID)
+        let assignment = try XCTUnwrap(model.savedWindowAssignments.first)
+        model.detach(windowID: assignment.id)
+
+        let replacementHandle = AXWindowHandle(element: AXUIElementCreateApplication(902))
+        mock.windowSnapshots = [snapshot(handle: replacementHandle, title: nil)]
+        mock.focusedHandle = nil
+        model.restore(assignments: [assignment], excluding: [], allowingOrdinalFallback: false)
+
+        let restored = try XCTUnwrap(model.sections[sectionID]?.activeWindow)
+        XCTAssertEqual(restored.id, assignment.id)
+        XCTAssertEqual(restored.handle, replacementHandle)
+        XCTAssertNil(restored.title)
+        XCTAssertEqual(restored.displayTitle, restored.applicationName)
+        XCTAssertFalse(assignment.matchesWindowTitle("Different document"))
+        // Before unavailable titles were stored as "Window", an empty string
+        // was a readable empty title; the legacy record must not claim one.
+        XCTAssertFalse(assignment.matchesWindowTitle(""))
+        XCTAssertNil(mock.focusedHandle)
+    }
+
+    func testUnavailableAndEmptyWindowTitlesStayDistinct() {
+        func record(title: String, unavailable: Bool? = nil) -> PersistedWindowAssignment {
+            PersistedWindowAssignment(
+                id: UUID(), sectionID: UUID(), additionalSectionIDs: [],
+                bundleIdentifier: "com.google.Chrome.app.example", processIdentifier: 1,
+                accessibilityIdentifier: nil, title: title, windowOrdinal: 0, order: 0, isActive: true,
+                isTitleUnavailable: unavailable
+            )
+        }
+        let unavailable = record(title: "", unavailable: true)
+        XCTAssertNil(unavailable.windowTitle)
+        XCTAssertTrue(unavailable.matchesWindowTitle(nil))
+        XCTAssertFalse(unavailable.matchesWindowTitle(""))
+        XCTAssertFalse(unavailable.matchesWindowTitle("Window"))
+        XCTAssertTrue(unavailable.hasDistinctiveTitle)
+
+        let empty = record(title: "")
+        XCTAssertEqual(empty.windowTitle, "")
+        XCTAssertTrue(empty.matchesWindowTitle(""))
+        XCTAssertFalse(empty.matchesWindowTitle(nil))
+        XCTAssertFalse(empty.hasDistinctiveTitle)
+
+        let legacy = record(title: "Window")
+        XCTAssertTrue(legacy.matchesWindowTitle(nil))
+        XCTAssertTrue(legacy.matchesWindowTitle("Window"))
+        XCTAssertFalse(legacy.matchesWindowTitle(""))
+        XCTAssertTrue(legacy.hasDistinctiveTitle)
+    }
+
+    func testRestoreDistinguishesUnavailableTitleFromEmptyTitle() throws {
+        let mock = MockAccessibility()
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let emptyHandle = AXWindowHandle(element: AXUIElementCreateApplication(pid))
+        let unavailableHandle = AXWindowHandle(element: AXUIElementCreateSystemWide())
+        let unavailable = snapshot(handle: unavailableHandle, title: nil)
+        mock.windowSnapshots = [unavailable]
+        let sectionID = UUID()
+        let model = makeModel(mock: mock, root: .leaf(id: sectionID))
+        model.attach(window: unavailable, to: sectionID)
+        let assignment = try XCTUnwrap(model.savedWindowAssignments.first)
+        XCTAssertEqual(assignment.isTitleUnavailable, true)
+        model.detach(windowID: assignment.id)
+
+        // The window with a readable empty title now sits at the saved
+        // ordinal; only the unavailable title identifies the right window.
+        let replacementHandle = AXWindowHandle(element: AXUIElementCreateApplication(903))
+        mock.windowSnapshots = [
+            snapshot(handle: emptyHandle, title: ""),
+            snapshot(handle: replacementHandle, title: nil)
+        ]
+        model.restore(assignments: [assignment], excluding: [], allowingOrdinalFallback: false)
+
+        XCTAssertEqual(model.sections[sectionID]?.windows.map(\.handle), [replacementHandle])
+        XCTAssertEqual(model.sections[sectionID]?.activeWindowID, assignment.id)
+    }
+
+    func testUnavailableWindowTitleSurvivesStorageAndRelaunch() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let url = directory.appendingPathComponent("window-assignments.json")
+        let sectionID = UUID()
+        let firstMock = MockAccessibility()
+        let firstHandle = AXWindowHandle(element: AXUIElementCreateSystemWide())
+        firstMock.windowSnapshot = snapshot(handle: firstHandle, title: nil)
+        let firstModel = makeModel(mock: firstMock, root: .leaf(id: sectionID), directory: directory)
+        firstModel.attach(window: try XCTUnwrap(firstMock.windowSnapshot), to: sectionID)
+        let originalID = try XCTUnwrap(firstModel.sections[sectionID]?.activeWindowID)
+
+        let stored = try XCTUnwrap(WindowAssignmentPersistence(url: url).load().first)
+        XCTAssertEqual(stored.isTitleUnavailable, true)
+        XCTAssertNil(stored.windowTitle)
+        // Older versions require a title string and ignore the new field.
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [[String: Any]]
+        )
+        XCTAssertEqual(json.first?["title"] as? String, "")
+
+        let secondMock = MockAccessibility()
+        let reconstructedHandle = AXWindowHandle(
+            element: AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+        )
+        secondMock.windowSnapshot = snapshot(handle: reconstructedHandle, title: nil)
+        let relaunchedModel = makeModel(mock: secondMock, directory: directory)
+
+        let restored = try XCTUnwrap(relaunchedModel.sections[sectionID]?.activeWindow)
+        XCTAssertEqual(restored.id, originalID)
+        XCTAssertEqual(restored.handle, reconstructedHandle)
+        XCTAssertNil(restored.title)
+        XCTAssertEqual(restored.displayTitle, restored.applicationName)
+    }
+
+    func testReplacementRecoveryMatchesUnavailableTitles() throws {
+        for orphanFirst in [false, true] {
+            let left = UUID()
+            let laptop = UUID()
+            let clock = MockClock()
+            let mock = MockAccessibility()
+            let pid = ProcessInfo.processInfo.processIdentifier
+            let oldHandle = AXWindowHandle(element: AXUIElementCreateSystemWide())
+            let survivingHandle = AXWindowHandle(element: AXUIElementCreateApplication(pid))
+            let replacementHandle = AXWindowHandle(element: AXUIElementCreateApplication(pid + 1))
+            let old = snapshot(handle: oldHandle, title: nil)
+            let surviving = snapshot(handle: survivingHandle, title: "Laptop document")
+            mock.windowSnapshots = [old, surviving]
+            mock.windowSnapshotsByHandle = [oldHandle: old, survivingHandle: surviving]
+            let model = makeModel(mock: mock, root: .split(
+                id: UUID(), axis: .horizontal, ratio: 0.5,
+                first: .leaf(id: left), second: .leaf(id: laptop)
+            ), clock: clock)
+            model.attach(window: old, to: left)
+            model.attach(window: surviving, to: laptop)
+            let originalID = try XCTUnwrap(model.managedWindow(matching: oldHandle)?.id)
+            mock.snapshotErrorsByHandle[oldHandle] = AccessibilityClientError.attribute(
+                kAXRoleAttribute as String, .invalidUIElement
+            )
+            mock.windowSnapshots = [surviving]
+            mock.listedWindowHandles = [survivingHandle]
+            if orphanFirst {
+                model.refreshRuntime(reportedFrontmostPID: nil)
+                clock.advance(PanoptosModel.invalidWindowFailureDuration + 1)
+                model.refreshRuntime(reportedFrontmostPID: nil)
+                XCTAssertNil(model.managedWindow(id: originalID))
+                XCTAssertTrue(model.orphanedAssignments.contains { $0.id == originalID })
+            }
+            let replacement = snapshot(handle: replacementHandle, title: nil)
+            mock.windowSnapshots = [surviving, replacement]
+            mock.windowSnapshotsByHandle[replacementHandle] = replacement
+            mock.listedWindowHandles = [survivingHandle, replacementHandle]
+
+            XCTAssertEqual(model.attachNewlyCreatedWindow(
+                replacementHandle, pid: pid, reportedFrontmostPID: nil
+            ), .attached)
+
+            XCTAssertEqual(model.sections[left]?.windows.map(\.id), [originalID])
+            XCTAssertEqual(model.sections[left]?.windows.map(\.handle), [replacementHandle])
+            XCTAssertEqual(model.sections[laptop]?.windows.map(\.handle), [survivingHandle])
+            XCTAssertFalse(model.orphanedAssignments.contains { $0.id == originalID })
+        }
     }
 
     func testRelaunchRestoresBehaviorAndSectionBarSettings() {
@@ -10896,7 +11147,7 @@ final class WindowManagementTests: XCTestCase {
                 applicationName: unattachedWindow.applicationName,
                 icon: unattachedWindow.icon,
                 windows: [unattachedWindow],
-                nextWindowTitle: unattachedWindow.title
+                nextWindowTitle: unattachedWindow.displayTitle
             )
         }
         settleHostedSwitcher(hosting)
@@ -11159,7 +11410,7 @@ final class WindowManagementTests: XCTestCase {
 
     private func snapshot(
         handle: AXWindowHandle,
-        title: String,
+        title: String?,
         frame: CGRect = CGRect(x: 50, y: 50, width: 500, height: 400),
         pid: pid_t = ProcessInfo.processInfo.processIdentifier,
         finderTabGroup: AXWindowHandle? = nil

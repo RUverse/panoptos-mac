@@ -4,7 +4,7 @@ import XCTest
 
 final class MenuParsingTests: XCTestCase {
     func testFeedbackLinkUsesGitHubIssuesWithoutQueryMetadata() {
-        XCTAssertEqual(PanoptosLinks.feedback.absoluteString, "https://github.com/RUverse/panoptos/issues")
+        XCTAssertEqual(PanoptosLinks.feedback.absoluteString, "https://github.com/RUverse/panoptos-mac/issues")
         XCTAssertNil(PanoptosLinks.feedback.query)
     }
 
