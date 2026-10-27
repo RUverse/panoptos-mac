@@ -745,7 +745,12 @@ extension PanoptosModel {
                 }
                 let accessibilityFrame = Self.accessibilityFrame(fromAppKitFrame: frame)
                 do {
-                    let current = try accessibility.snapshot(window: window.handle).frame
+                    let snapshot = try accessibility.snapshot(window: window.handle)
+                    // Entering full screen reports a resize like any other.
+                    // The window owns its Space until it leaves, and macOS
+                    // returns it to its section frame then.
+                    guard !snapshot.isFullScreen else { continue }
+                    let current = snapshot.frame
                     // A resizable window may expose an application-defined
                     // maximum smaller than its section. Once centered, that is
                     // a settled managed frame. Requesting the full frame again
