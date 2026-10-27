@@ -20,6 +20,11 @@ struct ManagedWindow: Identifiable {
     /// closing it, as menu bar applications do. Session-only; the assignment
     /// stays attached so the window returns to its section when it reappears.
     var isOnActiveSpace = true
+    /// True while the window is in native full screen. It fills a Space of
+    /// its own there, where its section's bars would sit on top of it, so
+    /// the switcher stops drawing it until it leaves full screen. Session-only;
+    /// the assignment stays attached.
+    var isFullScreen = false
     /// The last frame a snapshot reported, in Accessibility coordinates. It
     /// lets the window-server check still answer for a window whose snapshot
     /// is currently failing. Session-only and excluded from equality: a move
@@ -28,6 +33,10 @@ struct ManagedWindow: Identifiable {
 
     var target: TargetApplication {
         TargetApplication(pid: pid, bundleIdentifier: bundleIdentifier, name: applicationName, icon: icon)
+    }
+
+    var isShownInSwitcher: Bool {
+        isOnActiveSpace && !isFullScreen
     }
 
     var displayTitle: String {
@@ -60,6 +69,7 @@ extension ManagedWindow: Equatable {
             && lhs.isMinimized == rhs.isMinimized
             && lhs.finderTabGroup == rhs.finderTabGroup
             && lhs.isOnActiveSpace == rhs.isOnActiveSpace
+            && lhs.isFullScreen == rhs.isFullScreen
     }
 }
 
@@ -81,13 +91,13 @@ struct LayoutSectionState: Identifiable, Equatable {
     }
 
     /// The windows the switcher renders. Attached windows that are off screen
-    /// keep their assignment but not their icon.
+    /// or in native full screen keep their assignment but not their icon.
     var visibleWindows: [ManagedWindow] {
-        windows.filter(\.isOnActiveSpace)
+        windows.filter(\.isShownInSwitcher)
     }
 
     var hasVisibleWindows: Bool {
-        windows.contains(where: \.isOnActiveSpace)
+        windows.contains(where: \.isShownInSwitcher)
     }
 }
 

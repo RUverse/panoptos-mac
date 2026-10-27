@@ -201,6 +201,7 @@ extension PanoptosModel {
         // IPC call, so an application with several invalid windows must not
         // multiply them.
         var listedHandlesByPID: [pid_t: [AXWindowHandle]?] = [:]
+        var fullScreenChanged = false
 
         for key in Array(sections.keys) {
             guard var section = sections[key] else { continue }
@@ -239,6 +240,8 @@ extension PanoptosModel {
                 if window.title != snapshot.title { assignmentsChanged = true }
                 window.title = snapshot.title
                 window.isMinimized = snapshot.isMinimized
+                if window.isFullScreen != snapshot.isFullScreen { fullScreenChanged = true }
+                window.isFullScreen = snapshot.isFullScreen
                 window.finderTabGroup = snapshot.finderTabGroup ?? window.finderTabGroup
                 window.lastKnownFrame = snapshot.frame
                 refreshed.append(window)
@@ -319,7 +322,8 @@ extension PanoptosModel {
            focusedWindowID != previouslyFocusedWindowID
             || self.focusedUnattachedWindowHandle != previouslyFocusedUnattachedHandle
             || attachedPendingCreation
-            || spaceVisibilityChanged {
+            || spaceVisibilityChanged
+            || fullScreenChanged {
             onOverlayPresentationChanged?()
         }
         // Runs on every activation, so this is where a switch made outside
