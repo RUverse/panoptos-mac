@@ -10161,6 +10161,58 @@ final class WindowManagementTests: XCTestCase {
         XCTAssertEqual(model.sections[sectionID]?.visibleWindows.map(\.handle), [handle])
     }
 
+    /// A native full-screen window fills a Space of its own, and the window
+    /// server lists it on screen there, so its section's switcher would sit
+    /// on top of it. The switcher stops drawing it, reflow leaves its frame
+    /// to the system, and the icon returns once it leaves full screen.
+    func testFullScreenManagedWindowLeavesSwitcherWithoutDetaching() throws {
+        let mock = MockAccessibility()
+        let handle = AXWindowHandle(element: AXUIElementCreateSystemWide())
+        let window = snapshot(handle: handle, title: "Editor")
+        mock.windowSnapshotsByHandle[handle] = window
+        let model = makeModel(mock: mock)
+        let sectionID = try XCTUnwrap(model.sectionFrames().keys.first)
+        model.attach(window: window, to: sectionID)
+        model.refreshRuntime(reportedFrontmostPID: nil)
+        XCTAssertEqual(model.sections[sectionID]?.visibleWindows.map(\.handle), [handle])
+        var repaints = 0
+        model.onOverlayPresentationChanged = { repaints += 1 }
+
+        func fullScreenSnapshot(_ isFullScreen: Bool) -> AXWindowSnapshot {
+            AXWindowSnapshot(
+                handle: handle,
+                pid: window.pid,
+                title: window.title,
+                frame: CGRect(x: 0, y: 0, width: 1_700, height: 1_100),
+                isMinimized: false,
+                isFullScreen: isFullScreen,
+                isResizable: true
+            )
+        }
+        mock.windowSnapshotsByHandle[handle] = fullScreenSnapshot(true)
+        model.refreshRuntime(reportedFrontmostPID: nil)
+
+        XCTAssertEqual(model.sections[sectionID]?.windows.map(\.handle), [handle])
+        XCTAssertEqual(model.sections[sectionID]?.visibleWindows.map(\.handle), [])
+        XCTAssertEqual(model.sections[sectionID]?.hasVisibleWindows, false)
+        XCTAssertTrue(model.orphanedAssignments.isEmpty)
+        XCTAssertEqual(repaints, 1)
+
+        let requestsBeforeReflow = mock.setFrameRequests.count
+        model.reflowManagedWindows()
+        XCTAssertEqual(mock.setFrameRequests.count, requestsBeforeReflow)
+
+        // The same frame out of full screen is fitted back into the section.
+        mock.windowSnapshotsByHandle[handle] = fullScreenSnapshot(false)
+        model.refreshRuntime(reportedFrontmostPID: nil)
+
+        XCTAssertEqual(model.sections[sectionID]?.visibleWindows.map(\.handle), [handle])
+        XCTAssertEqual(repaints, 2)
+        model.reflowManagedWindows()
+        XCTAssertEqual(mock.setFrameRequests.last?.window, handle)
+        XCTAssertEqual(mock.setFrameRequests.count, requestsBeforeReflow + 1)
+    }
+
     /// Locking the screen puts the display to sleep about half a second
     /// later, and the window server can stop listing the desktop's windows
     /// in that gap. The settle period after the wake protects assignments
